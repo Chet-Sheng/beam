@@ -71,10 +71,16 @@ def run(argv=None):
                       dest='output',
                       # CHANGE 1/5: The Google Cloud Storage path is required
                       # for outputting the results.
-                      default='gs://YOUR_OUTPUT_BUCKET/AND_OUTPUT_PREFIX',
+                      default='./result_wordcount_minimal',
                       help='Output file to write results to.')
   known_args, pipeline_args = parser.parse_known_args(argv)
-  pipeline_args.extend([
+  '''
+  parse_known_args: does not produce an error when extra arguments are present.
+  known_args:       --input & --output
+  pipeline_args:    unknown args.
+  '''
+
+  pipeline_args.extend([ # extend is similar to append. It only append elements to args (better).
       # CHANGE 2/5: (OPTIONAL) Change this to DataflowRunner to
       # run your pipeline on the Google Cloud Dataflow Service.
       '--runner=DirectRunner',
@@ -90,20 +96,35 @@ def run(argv=None):
       '--job_name=your-wordcount-job',
   ])
 
+  '''
+  pipeline_options: setting runner based configurations.
+  This object lets us set various options for our pipeline, such as the pipeline runner that will execute our pipeline,
+  and any runner-specific configuration required by the chosen runner.
+  '''
   # We use the save_main_session option because one or more DoFn's in this
   # workflow rely on global context (e.g., a module imported at module level).
-  pipeline_options = PipelineOptions(pipeline_args)
+  pipeline_options = PipelineOptions(pipeline_args)  # pipeline_args check above
   pipeline_options.view_as(SetupOptions).save_main_session = True
+
+  '''
+  Create a Pipeline object with the options we’ve just constructed.
+  The Pipeline object builds up the graph of transformations to be executed, associated with that particular pipeline.
+  '''
   with beam.Pipeline(options=pipeline_options) as p:
 
     # Read the text file[pattern] into a PCollection.
+
     lines = p | ReadFromText(known_args.input)
+    # p | beam.io.ReadFromText('gs://dataflow-samples/shakespeare/kinglear.txt')
 
     # Count the occurrences of each word.
     counts = (
         lines
-        | 'Split' >> (beam.FlatMap(lambda x: re.findall(r'[A-Za-z\']+', x))
+        # This transform splits the lines in PCollection<String>, where each element is an individual word in Shakespeare’s collected texts.
+        | 'Split' >> (beam.FlatMap(lambda x: re.findall(r'[A-Za-z\']+', x))  # re.findall: find all words and list them seperativly
                       .with_output_types(unicode))
+        # The map transform is a higher-level composite transform that encapsulates a simple ParDo.
+        # For each element in the input PCollection, the map transform applies a function that produces exactly one output element.
         | 'PairWithOne' >> beam.Map(lambda x: (x, 1))
         | 'GroupAndSum' >> beam.CombinePerKey(sum))
 
@@ -117,7 +138,8 @@ def run(argv=None):
     # Write the output using a "Write" transform that has side effects.
     # pylint: disable=expression-not-assigned
     output | WriteToText(known_args.output)
-
+    # A text file write transform. This transform takes the final PCollection of formatted Strings as input and writes each element to an output text file.
+    # Each element in the input PCollection represents one line of text in the resulting output file.
 
 if __name__ == '__main__':
   logging.getLogger().setLevel(logging.INFO)
