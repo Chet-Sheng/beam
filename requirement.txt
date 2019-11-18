@@ -1,0 +1,8 @@
+cython
+apache-beam[gcp,docs,test]
+pandas
+scipy
+scikit-learn
+matplotlib
+seaborn
+jupyterlab
